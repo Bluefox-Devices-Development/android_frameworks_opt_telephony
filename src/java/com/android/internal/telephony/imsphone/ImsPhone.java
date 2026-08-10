@@ -169,6 +169,10 @@ public class ImsPhone extends ImsPhoneBase {
     private static final int EVENT_INITIATE_VOLTE_SILENT_REDIAL      = EVENT_LAST + 10;
     private static final int EVENT_GET_CLIP_DONE                     = EVENT_LAST + 11;
 
+    @VisibleForTesting
+    static final String EXTRA_CS_TO_IMS_EMERGENCY_RETRY =
+            "com.android.internal.telephony.extra.CS_TO_IMS_EMERGENCY_RETRY";
+
     static final int RESTART_ECM_TIMER = 0; // restart Ecm timer
     static final int CANCEL_ECM_TIMER  = 1; // cancel Ecm timer
 
@@ -2819,13 +2823,19 @@ public class ImsPhone extends ImsPhoneBase {
             ImsPhone.ImsDialArgs.Builder imsDialArgsBuilder;
             imsDialArgsBuilder = ImsPhone.ImsDialArgs.Builder.from(dialArgs);
 
-            Bundle extras = new Bundle(dialArgs.intentExtras);
+            Bundle extras = dialArgs.intentExtras == null
+                    ? new Bundle() : new Bundle(dialArgs.intentExtras);
             if (causeCode == CallFailCause.EMC_REDIAL_ON_VOWIFI) {
+                extras.putBoolean(EXTRA_CS_TO_IMS_EMERGENCY_RETRY, true);
                 extras.putString(ImsCallProfile.EXTRA_CALL_RAT_TYPE,
                         String.valueOf(ServiceState.RIL_RADIO_TECHNOLOGY_IWLAN));
-                logd("trigger VoWifi emergency call");
+                imsDialArgsBuilder.setRetryCallFailCause(causeCode);
                 imsDialArgsBuilder.setIntentExtras(extras);
+                logd("trigger VoWifi emergency call");
             } else if (causeCode == CallFailCause.EMC_REDIAL_ON_IMS) {
+                extras.putBoolean(EXTRA_CS_TO_IMS_EMERGENCY_RETRY, true);
+                imsDialArgsBuilder.setRetryCallFailCause(causeCode);
+                imsDialArgsBuilder.setIntentExtras(extras);
                 logd("trigger VoLte emergency call");
             }
             return imsDialArgsBuilder.build();

@@ -81,6 +81,7 @@ import android.telephony.PhoneNumberManager;
 import android.telephony.ServiceState;
 import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ImsRegistrationAttributes;
 import android.telephony.ims.RegistrationManager;
@@ -95,6 +96,7 @@ import androidx.test.filters.SmallTest;
 import com.android.ims.ImsEcbmStateListener;
 import com.android.ims.ImsUtInterface;
 import com.android.internal.telephony.Call;
+import com.android.internal.telephony.CallFailCause;
 import com.android.internal.telephony.CallStateException;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.Connection;
@@ -1736,6 +1738,59 @@ public class ImsPhoneTest extends TelephonyTest {
 
         assertTrue(copiedDialArgs.isEmergency);
         assertEquals(2, copiedDialArgs.eccCategory);
+    }
+
+    @Test
+    @SmallTest
+    public void testVolteSilentRedialCarriesUnambiguousRetryMarker() {
+        Bundle originalExtras = new Bundle();
+        ImsPhone.ImsDialArgs dialArgs = new ImsPhone.ImsDialArgs.Builder()
+                .setIsEmergency(true)
+                .setIntentExtras(originalExtras)
+                .build();
+
+        ImsPhone.ImsDialArgs retryArgs = (ImsPhone.ImsDialArgs)
+                mImsPhoneUT.updateDialArgsForVolteSilentRedial(
+                        dialArgs, CallFailCause.EMC_REDIAL_ON_IMS);
+
+        assertEquals(CallFailCause.EMC_REDIAL_ON_IMS, retryArgs.retryCallFailCause);
+        assertTrue(retryArgs.intentExtras.getBoolean(
+                ImsPhone.EXTRA_CS_TO_IMS_EMERGENCY_RETRY));
+        assertFalse(originalExtras.getBoolean(ImsPhone.EXTRA_CS_TO_IMS_EMERGENCY_RETRY));
+    }
+
+    @Test
+    @SmallTest
+    public void testVowifiSilentRedialHandlesNullExtras() {
+        ImsPhone.ImsDialArgs dialArgs = new ImsPhone.ImsDialArgs.Builder()
+                .setIsEmergency(true)
+                .build();
+
+        ImsPhone.ImsDialArgs retryArgs = (ImsPhone.ImsDialArgs)
+                mImsPhoneUT.updateDialArgsForVolteSilentRedial(
+                        dialArgs, CallFailCause.EMC_REDIAL_ON_VOWIFI);
+
+        assertEquals(CallFailCause.EMC_REDIAL_ON_VOWIFI, retryArgs.retryCallFailCause);
+        assertTrue(retryArgs.intentExtras.getBoolean(
+                ImsPhone.EXTRA_CS_TO_IMS_EMERGENCY_RETRY));
+        assertEquals(String.valueOf(ServiceState.RIL_RADIO_TECHNOLOGY_IWLAN),
+                retryArgs.intentExtras.getString(ImsCallProfile.EXTRA_CALL_RAT_TYPE));
+    }
+
+    @Test
+    @SmallTest
+    public void testNonEmergencyRetryCauseDoesNotSetEmergencyMarker() {
+        ImsPhone.ImsDialArgs dialArgs = new ImsPhone.ImsDialArgs.Builder()
+                .setIsEmergency(true)
+                .build();
+
+        ImsPhone.ImsDialArgs retryArgs = (ImsPhone.ImsDialArgs)
+                mImsPhoneUT.updateDialArgsForVolteSilentRedial(
+                        dialArgs, ImsReasonInfo.CODE_LOCAL_CALL_DECLINE);
+
+        assertEquals(ImsReasonInfo.CODE_UNSPECIFIED, retryArgs.retryCallFailCause);
+        assertFalse(retryArgs.intentExtras != null && retryArgs.intentExtras.getBoolean(
+                ImsPhone.EXTRA_CS_TO_IMS_EMERGENCY_RETRY));
     }
 
     @Test
